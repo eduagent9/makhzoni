@@ -6,7 +6,7 @@ let db=load(),page='dashboard',searchText='',modalSave=null;
 function load(){try{return {...empty(),...JSON.parse(localStorage.getItem(KEY)||'{}')}}catch{return empty()}}
 function save(){localStorage.setItem(KEY,JSON.stringify(db))}
 const $=s=>document.querySelector(s), money=n=>(Number(n)||0).toLocaleString('ar-MA',{maximumFractionDigits:2})+' '+db.settings.currency;
-const today=()=>new Date().toISOString().slice(0,10), esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const today=()=>{const d=new Date(),pad=n=>String(n).padStart(2,'0');return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())}, esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const id=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
 function toast(s){const t=$('#toast');t.textContent=s;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2300)}
 function sum(a,fn){return a.reduce((n,x)=>n+fn(x),0)}
