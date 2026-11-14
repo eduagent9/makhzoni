@@ -59,4 +59,5 @@ document.addEventListener('input',e=>{if(e.target.id==='searchInput'){searchText
 $('#modalForm').addEventListener('submit',e=>{e.preventDefault();if(modalSave)modalSave(formData())});$('#closeModal').onclick=closeModal;$('#cancelModal').onclick=closeModal;$('#backupBtn').onclick=exportJSON;
 $('#main').addEventListener('change',e=>{if(e.target.id==='importFile'&&e.target.files[0]){const f=e.target.files[0],r=new FileReader();r.onload=()=>{try{const x=JSON.parse(r.result);if(!x.products||!x.sales)throw Error();if(confirm('سيتم استبدال البيانات الحالية. هل تريد المتابعة؟')){db={...empty(),...x};save();render();toast('تم استرجاع النسخة')}}catch{toast('ملف النسخة غير صالح')}};r.readAsText(f)}});
 render();
+if('serviceWorker' in navigator && location.protocol!=='file:'){navigator.serviceWorker.register('./sw.js').catch(()=>{});}
 })();
