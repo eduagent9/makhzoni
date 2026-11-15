@@ -1,0 +1,21 @@
+name: Makhzoni Pro phase 1 checks
+on:
+  push:
+    branches:
+      - feature/makhzoni-phase1
+    paths:
+      - 'pro/app.js'
+      - '.github/workflows/makhzoni-pro-check.yml'
+  pull_request:
+    paths:
+      - 'pro/app.js'
+      - '.github/workflows/makhzoni-pro-check.yml'
+jobs:
+  syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node --check pro/app.js
