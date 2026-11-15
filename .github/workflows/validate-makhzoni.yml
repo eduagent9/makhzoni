@@ -1,5 +1,6 @@
 name: Validate Makhzoni
 on:
+  workflow_dispatch:
   push:
     branches: [feature/makhzoni-pro]
   pull_request:
