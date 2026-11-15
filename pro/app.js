@@ -73,7 +73,7 @@ function addSale(){
   for(const [pid,q] of Object.entries(merged)){const p=db.products.find(x=>x.id===pid);if(!p||q>p.qty)return toast('المخزون غير كافٍ للمنتج: '+(p?.name||''))}
   const subtotal=sum(lines,x=>x.totalQty*x.price),discount=Math.max(0,Number(d.discount)||0);if(discount>subtotal)return toast('التخفيض أكبر من مجموع الفاتورة');const items=lines.map(l=>{const p=db.products.find(x=>x.id===l.productId);const allocations=consumeBatches(p.id,l.totalQty);const lineCost=sum(allocations,x=>x.qty*x.unitCost);return {productId:p.id,productName:p.name,qty:l.totalQty,cartons:l.cartons,looseQty:l.qty,unitsPerCarton:p.unitsPerCarton,price:l.price,costUnit:l.totalQty?lineCost/l.totalQty:p.buy,lineTotal:l.totalQty*l.price,lineCost,batchAllocations:allocations}});
   
-  const total=subtotal-discount,paid=Math.min(total,Math.max(0,Number(d.paid)||0)),invoice='INV-'+Date.now().toString().slice(-7);
+  const total=subtotal-discount,requestedPaid=Number(d.paid)||0;if(!Number.isFinite(requestedPaid)||requestedPaid<0||requestedPaid>total)return toast('المبلغ المدفوع يجب أن يكون بين صفر وإجمالي الفاتورة');const paid=requestedPaid,invoice='INV-'+Date.now().toString().slice(-7);
   for(const [pid,q] of Object.entries(merged))db.products.find(x=>x.id===pid).qty-=q;
   db.sales.push({id:id(),invoice,date:today(),created:Date.now(),customer:d.customer,seller:d.seller||'',items,productName:items.map(x=>x.productName).join('، '),qty:sum(items,x=>x.qty),price:0,cost:sum(items,x=>x.lineCost),discount,total,paid,payments:paid>0?[{date:today(),amount:paid,created:Date.now(),type:'initial'}]:[],profit:total-sum(items,x=>x.lineCost)});
   save();closeModal();render();toast('تم حفظ الفاتورة '+invoice);
@@ -106,24 +106,32 @@ function addExpense(){openModal('إضافة مصروف','<div class="form-grid">
 function addReturn(){
  if(!db.products.length)return toast('لا توجد منتجات');
  const saleOptions=db.sales.slice().reverse().map(s=>({value:s.id,label:s.invoice+' — '+(s.customer||'زبون نقدي')+' — '+s.date}));
- openModal('تسجيل مرتجع','<div class="form-grid">'+selectField('نوع المرتجع','type',[{value:'sale',label:'مرتجع بيع مرتبط بفاتورة'},{value:'purchase',label:'مرتجع شراء'}])+selectField('فاتورة البيع','saleId',[{value:'',label:'اختر الفاتورة'},...saleOptions])+selectField('المنتج','productId',productOptions())+field('الكمية','qty','number',1,'min="1" step="1" required')+field('القيمة المسترجعة','amount','number',0,'min="0" step="0.01"')+'</div><div class="hint-box">مرتجع البيع يسترجع تكلفة القطعة من الفاتورة الأصلية، وليس من سعر الشراء الحالي.</div>',d=>{
+ openModal('تسجيل مرتجع','<div class="form-grid">'+selectField('نوع المرتجع','type',[{value:'sale',label:'مرتجع بيع مرتبط بفاتورة'},{value:'purchase',label:'مرتجع شراء'}])+selectField('فاتورة البيع','saleId',[{value:'',label:'اختر الفاتورة'},...saleOptions])+selectField('المنتج','productId',productOptions())+field('الكمية','qty','number',1,'min="1" step="1" required')+field('القيمة المسترجعة','amount','number',0,'min="0" step="0.01"')+'</div><div class="hint-box">عند تكرار المنتج في نفس الفاتورة، يوزع النظام المرتجع تلقائياً على السطور المتبقية حسب ترتيبها ويحافظ على تكلفة كل سطر.</div>',d=>{
   const p=db.products.find(x=>x.id===d.productId),q=Number(d.qty),amount=Math.max(0,Number(d.amount)||0);
-  if(!p||!Number.isInteger(q)||q<1)return toast('تحقق من المنتج والكمية');
-  let sourceSale=null,sourceIndex=-1,unitCost=Number(p.buy)||0,costAmount=0;
+  if(!p||!Number.isInteger(q)||q<1||!Number.isFinite(amount))return toast('تحقق من المنتج والكمية والقيمة');
+  let sourceSale=null,sourceIndex=-1,unitCost=Number(p.buy)||0,costAmount=0,allocations=[];
   if(d.type==='sale'){
    sourceSale=db.sales.find(x=>x.id===d.saleId);
    if(!sourceSale)return toast('اختر فاتورة البيع الأصلية');
-   sourceIndex=(sourceSale.items||[]).findIndex(x=>x.productId===p.id);
-   if(sourceIndex<0)return toast('المنتج غير موجود في الفاتورة');
-   const item=sourceSale.items[sourceIndex];
-   const returned=sum(db.returns.filter(r=>r.type==='sale'&&r.saleId===sourceSale.id&&r.saleItemIndex===sourceIndex),r=>Number(r.qty)||0);
-   if(q>Number(item.qty)-returned)return toast('الكمية أكبر من المتبقي القابل للإرجاع');
-   unitCost=Number(item.costUnit)||(Number(item.lineCost)||0)/(Number(item.qty)||1);
-   costAmount=q*unitCost;
+   const items=sourceSale.items||[];
+   let left=q;
+   for(let i=0;i<items.length&&left>0;i++){
+    const item=items[i];if(item.productId!==p.id)continue;
+    const already=sum(db.returns.filter(r=>r.type==='sale'&&r.saleId===sourceSale.id),r=>{
+     const saved=(r.saleItemAllocations||((r.saleItemIndex===i)?[{index:i,qty:r.qty}]:[]));
+     return sum(saved.filter(a=>a.index===i),a=>Number(a.qty)||0);
+    });
+    const available=Math.max(0,(Number(item.qty)||0)-already),take=Math.min(left,available);
+    if(take>0){const unit=Number(item.costUnit)||((Number(item.lineCost)||0)/(Number(item.qty)||1));allocations.push({index:i,qty:take,unitCost:unit});costAmount+=take*unit;left-=take}
+   }
+   if(left>0)return toast('الكمية أكبر من المتبقي القابل للإرجاع في الفاتورة');
+   sourceIndex=allocations[0]?.index??-1;
+   unitCost=q?costAmount/q:0;
   }else if(q>p.qty)return toast('الكمية أكبر من المخزون الحالي');
   p.qty+=d.type==='sale'?q:-q;
   if(d.type==='sale')db.batches.push({id:id(),productId:p.id,productName:p.name,received:q,remaining:q,unitCost,expiry:'',date:today(),created:Date.now(),ref:'مرتجع '+sourceSale.invoice});
-  db.returns.push({id:id(),date:today(),created:Date.now(),type:d.type,productId:p.id,productName:p.name,qty:q,amount,costAmount,unitCost,saleId:sourceSale?.id||null,invoice:sourceSale?.invoice||'',saleItemIndex:sourceIndex});
+  db.returns.push({id:id(),date:today(),created:Date.now(),type:d.type,productId:p.id,productName:p.name,qty:q,amount,costAmount,unitCost,saleId:sourceSale?.id||null,invoice:sourceSale?.invoice||'',saleItemIndex:sourceIndex,saleItemAllocations:allocations});
+  audit('تسجيل مرتجع',p.name+' × '+q+' '+(sourceSale?.invoice||''));
   save();closeModal();render();toast('تم تسجيل المرتجع وربطه بالتكلفة الأصلية');
  });
 }
