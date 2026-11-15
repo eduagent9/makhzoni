@@ -91,7 +91,8 @@ function financeTotals(list=db.sales){
  const expenses=sum(db.expenses,x=>Number(x.amount)||0);
  return {gross,netSales:gross-saleReturns,cost:Math.max(0,salesCost-returnedCost),saleReturns,expenses,profit:gross-saleReturns-Math.max(0,salesCost-returnedCost)-expenses};
 }
-\nfunction addExpense(){openModal('إضافة مصروف','<div class="form-grid">'+field('بيان المصروف','title','text','','required')+selectField('التصنيف','category',[{value:'كراء',label:'كراء'},{value:'أجور',label:'أجور'},{value:'نقل',label:'نقل'},{value:'كهرباء وماء',label:'كهرباء وماء'},{value:'أخرى',label:'أخرى'}])+field('المبلغ','amount','number',0,'min="0.01" step="0.01" required')+'</div>',d=>{if(+d.amount<=0)return toast('أدخل مبلغاً صحيحاً');db.expenses.push({...d,id:id(),amount:+d.amount,date:today(),created:Date.now()});save();closeModal();render();toast('تم تسجيل المصروف')})}
+
+function addExpense(){openModal('إضافة مصروف','<div class="form-grid">'+field('بيان المصروف','title','text','','required')+selectField('التصنيف','category',[{value:'كراء',label:'كراء'},{value:'أجور',label:'أجور'},{value:'نقل',label:'نقل'},{value:'كهرباء وماء',label:'كهرباء وماء'},{value:'أخرى',label:'أخرى'}])+field('المبلغ','amount','number',0,'min="0.01" step="0.01" required')+'</div>',d=>{if(+d.amount<=0)return toast('أدخل مبلغاً صحيحاً');db.expenses.push({...d,id:id(),amount:+d.amount,date:today(),created:Date.now()});save();closeModal();render();toast('تم تسجيل المصروف')})}
 function addReturn(){
  if(!db.products.length)return toast('لا توجد منتجات');
  const saleOptions=db.sales.slice().reverse().map(s=>({value:s.id,label:s.invoice+' — '+(s.customer||'زبون نقدي')+' — '+s.date}));
