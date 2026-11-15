@@ -4,7 +4,7 @@ on:
     branches:
       - feature/makhzoni-phase1
     paths:
-      - 'pro/app.js'
+      - 'pro/**'
       - '.github/workflows/makhzoni-pro-check.yml'
   pull_request:
     paths:
