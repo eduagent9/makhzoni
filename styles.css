@@ -4,3 +4,5 @@
 
 /* customer accounts and branch stock */
 .customer-balance{font-weight:700;color:var(--amber)}.branch-stock{font-size:11px;color:var(--muted)}.table-wrap+.hint-box{margin-top:12px}
+
+.more-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.more-link{border:1px solid var(--line);background:#fff;border-radius:12px;padding:18px;text-align:right;display:grid;gap:7px;cursor:pointer;color:var(--deep);font:inherit}.more-link b{font-size:14px}.more-link span{font-size:11px;color:var(--muted)}.more-link:hover{background:var(--mint)}@media(max-width:650px){.more-grid{grid-template-columns:1fr}}
