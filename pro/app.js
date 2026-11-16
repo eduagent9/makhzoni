@@ -107,36 +107,45 @@ function addExpense(){openModal('إضافة مصروف','<div class="form-grid">
 function addReturn(){
  if(!db.products.length)return toast('لا توجد منتجات');
  const saleOptions=db.sales.slice().reverse().map(s=>({value:s.id,label:s.invoice+' — '+(s.customer||'زبون نقدي')+' — '+s.date}));
- openModal('تسجيل مرتجع','<div class="form-grid">'+selectField('نوع المرتجع','type',[{value:'sale',label:'مرتجع بيع مرتبط بفاتورة'},{value:'purchase',label:'مرتجع شراء'}])+selectField('فاتورة البيع','saleId',[{value:'',label:'اختر الفاتورة'},...saleOptions])+selectField('المنتج','productId',productOptions())+field('الكمية','qty','number',1,'min="1" step="1" required')+field('القيمة المسترجعة','amount','number',0,'min="0" step="0.01"')+'</div><div class="hint-box">عند تكرار المنتج في نفس الفاتورة، يوزع النظام المرتجع تلقائياً على السطور المتبقية حسب ترتيبها ويحافظ على تكلفة كل سطر.</div>',d=>{
-  const p=db.products.find(x=>x.id===d.productId),q=Number(d.qty),amount=Math.max(0,Number(d.amount)||0);
-  if(!p||!Number.isInteger(q)||q<1||!Number.isFinite(amount))return toast('تحقق من المنتج والكمية والقيمة');
-  let sourceSale=null,sourceIndex=-1,unitCost=Number(p.buy)||0,costAmount=0,allocations=[];
+ const purchaseOptions=db.purchases.slice().reverse().map(p=>({value:p.id,label:(p.ref||'شراء')+' — '+(p.supplier||'غير محدد')+' — '+p.productName+' — '+p.date}));
+ openModal('تسجيل مرتجع','<div class="form-grid">'+selectField('نوع المرتجع','type',[{value:'sale',label:'مرتجع بيع مرتبط بفاتورة'},{value:'purchase',label:'مرتجع شراء مقابل تخفيض دين المورد'}])+selectField('فاتورة البيع','saleId',[{value:'',label:'اختر الفاتورة'},...saleOptions])+selectField('فاتورة الشراء','purchaseId',[{value:'',label:'اختر فاتورة الشراء'},...purchaseOptions])+selectField('المنتج','productId',productOptions())+field('الكمية','qty','number',1,'min="1" step="1" required')+field('القيمة المسترجعة / تخفيض المورد','amount','number',0,'min="0" step="0.01" required')+'</div><div class="hint-box">مرتجع الشراء مرتبط بفاتورة محددة، ويخصم من دين المورد فقط. إذا كانت الفاتورة مؤداة بالكامل، لا يمكن تسجيله كتخفيض دين.</div>',d=>{
+  const p=db.products.find(x=>x.id===d.productId),q=Number(d.qty),amount=Number(d.amount);
+  if(!p||!Number.isInteger(q)||q<1||!Number.isFinite(amount)||amount<0)return toast('تحقق من المنتج والكمية والقيمة');
+  let sourceSale=null,sourcePurchase=null,sourceIndex=-1,unitCost=Number(p.buy)||0,costAmount=0,allocations=[];
   if(d.type==='sale'){
    sourceSale=db.sales.find(x=>x.id===d.saleId);
    if(!sourceSale)return toast('اختر فاتورة البيع الأصلية');
-   const items=sourceSale.items||[];
-   let left=q;
+   const items=sourceSale.items||[];let left=q;
    for(let i=0;i<items.length&&left>0;i++){
     const item=items[i];if(item.productId!==p.id)continue;
-    const already=sum(db.returns.filter(r=>r.type==='sale'&&r.saleId===sourceSale.id),r=>{
-     const saved=(r.saleItemAllocations||((r.saleItemIndex===i)?[{index:i,qty:r.qty}]:[]));
-     return sum(saved.filter(a=>a.index===i),a=>Number(a.qty)||0);
-    });
+    const already=sum(db.returns.filter(r=>r.type==='sale'&&r.saleId===sourceSale.id),r=>{const saved=(r.saleItemAllocations||((r.saleItemIndex===i)?[{index:i,qty:r.qty}]:[]));return sum(saved.filter(a=>a.index===i),a=>Number(a.qty)||0)});
     const available=Math.max(0,(Number(item.qty)||0)-already),take=Math.min(left,available);
     if(take>0){const unit=Number(item.costUnit)||((Number(item.lineCost)||0)/(Number(item.qty)||1));allocations.push({index:i,qty:take,unitCost:unit});costAmount+=take*unit;left-=take}
    }
    if(left>0)return toast('الكمية أكبر من المتبقي القابل للإرجاع في الفاتورة');
-   const invoiceSubtotal=sum(items,x=>Number(x.lineTotal??(Number(x.price||0)*Number(x.qty||0)))||0),discountRatio=invoiceSubtotal>0?Math.min(1,Math.max(0,Number(sourceSale.discount)||0)/invoiceSubtotal):0;const refundable=sum(allocations,a=>{const item=items[a.index],lineTotal=Number(item.lineTotal??(Number(item.price||0)*Number(item.qty||0)))||0;return lineTotal*(1-discountRatio)*(a.qty/Math.max(1,Number(item.qty)||1))});
+   const invoiceSubtotal=sum(items,x=>Number(x.lineTotal??(Number(x.price||0)*Number(x.qty||0)))||0),discountRatio=invoiceSubtotal>0?Math.min(1,Math.max(0,Number(sourceSale.discount)||0)/invoiceSubtotal):0;
+   const refundable=sum(allocations,a=>{const item=items[a.index],lineTotal=Number(item.lineTotal??(Number(item.price||0)*Number(item.qty||0)))||0;return lineTotal*(1-discountRatio)*(a.qty/Math.max(1,Number(item.qty)||1))});
    if(amount>refundable+0.000001)return toast('القيمة المسترجعة أكبر من قيمة السلع المرجعة في الفاتورة');
-   sourceIndex=allocations[0]?.index??-1;
-   unitCost=q?costAmount/q:0;
-  }else if(q>p.qty)return toast('الكمية أكبر من المخزون الحالي');
+   sourceIndex=allocations[0]?.index??-1;unitCost=q?costAmount/q:0;
+  }else if(d.type==='purchase'){
+   sourcePurchase=db.purchases.find(x=>x.id===d.purchaseId);
+   if(!sourcePurchase||sourcePurchase.productId!==p.id)return toast('اختر فاتورة شراء صحيحة لهذا المنتج');
+   const prior=sum(db.returns.filter(r=>r.type==='purchase'&&r.purchaseId===sourcePurchase.id),r=>Number(r.qty)||0);
+   const remaining=Math.max(0,Number(sourcePurchase.qty||0)-prior);
+   if(q>remaining)return toast('الكمية أكبر من المتبقي في فاتورة الشراء');
+   const outstanding=Math.max(0,Number(sourcePurchase.total||0)-Number(sourcePurchase.paid||0));
+   if(amount>outstanding+0.000001)return toast('قيمة التخفيض أكبر من دين هذه الفاتورة المتبقي');
+   const maxValue=(Number(sourcePurchase.unitCost)||Number(sourcePurchase.price)||0)*q;
+   if(amount>maxValue+0.000001)return toast('قيمة التخفيض أكبر من تكلفة الكمية المرجعة');
+   if(q>Number(p.qty||0))return toast('الكمية أكبر من المخزون الحالي');
+  }else return toast('نوع المرتجع غير صحيح');
   p.qty+=d.type==='sale'?q:-q;
   if(d.type==='sale')db.batches.push({id:id(),productId:p.id,productName:p.name,received:q,remaining:q,unitCost,expiry:'',date:today(),created:Date.now(),ref:'مرتجع '+sourceSale.invoice});
-  db.returns.push({id:id(),date:today(),created:Date.now(),type:d.type,productId:p.id,productName:p.name,qty:q,amount,costAmount,unitCost,saleId:sourceSale?.id||null,invoice:sourceSale?.invoice||'',saleItemIndex:sourceIndex,saleItemAllocations:allocations});
-  audit('تسجيل مرتجع',p.name+' × '+q+' '+(sourceSale?.invoice||''));
-  save();closeModal();render();toast('تم تسجيل المرتجع وربطه بالتكلفة الأصلية');
- });
+  if(d.type==='purchase')sourcePurchase.total=Math.max(Number(sourcePurchase.paid)||0,Number(sourcePurchase.total||0)-amount);
+  db.returns.push({id:id(),date:today(),created:Date.now(),type:d.type,productId:p.id,productName:p.name,qty:q,amount,costAmount:d.type==='sale'?costAmount:amount,unitCost,saleId:sourceSale?.id||null,purchaseId:sourcePurchase?.id||null,supplier:sourcePurchase?.supplier||'',invoice:sourceSale?.invoice||sourcePurchase?.ref||'',saleItemIndex:sourceIndex,saleItemAllocations:allocations});
+  audit('تسجيل مرتجع',p.name+' × '+q+' '+(sourceSale?.invoice||sourcePurchase?.ref||''));
+  save();closeModal();render();toast(d.type==='sale'?'تم تسجيل مرتجع البيع':'تم تسجيل المرتجع وتخفيض دين المورد');
+ })
 }
 function paySale(key){const s=db.sales.find(x=>x.id===key);if(!s)return;const due=saleDue(s);if(due<=0)return toast('الفاتورة مؤداة بالكامل');openModal('تسجيل أداء فاتورة '+s.invoice,'<div class="hint-box">المبلغ المتبقي: '+money(due)+'</div>'+field('المبلغ المستلم','amount','number',due,'min="0.01" max="'+due+'" step="0.01" required'),d=>{const amount=Number(d.amount);if(!Number.isFinite(amount)||amount<=0||amount>due)return toast('المبلغ غير صحيح');s.paid=salePaidTotal(s)+amount;s.payments=s.payments||[];s.payments.push({date:today(),amount,created:Date.now()});audit('تحصيل من زبون',s.invoice+' '+amount+' MAD');save();closeModal();render();toast('تم تسجيل الأداء')})}
 function stocktake(){if(!db.products.length)return toast('أضف منتجاً أولاً');openModal('جرد المخزون','<div class="form-grid">'+selectField('المنتج','productId',productOptions())+field('الكمية الفعلية بعد العد','counted','number',0,'min="0" step="1" required')+'</div><div class="hint-box">سيتم تعديل الكمية الحالية لتطابق الكمية التي أدخلتها.</div>',d=>{const p=db.products.find(x=>x.id===d.productId),counted=Number(d.counted);if(!p||!Number.isInteger(counted)||counted<0)return toast('أدخل كمية صحيحة');const before=p.qty;p.qty=counted;db.stocktakes.push({id:id(),date:today(),productId:p.id,productName:p.name,before,counted,created:Date.now()});save();closeModal();render();toast('تم تحديث المخزون بعد الجرد')})}
