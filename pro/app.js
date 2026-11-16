@@ -136,7 +136,7 @@ function addReturn(){
    const outstanding=Math.max(0,Number(sourcePurchase.total||0)-Number(sourcePurchase.paid||0));
    if(amount>outstanding+0.000001)return toast('قيمة التخفيض أكبر من دين هذه الفاتورة المتبقي');
    const maxValue=(Number(sourcePurchase.unitCost)||Number(sourcePurchase.price)||0)*q;
-   if(amount>maxValue+0.000001)return toast('قيمة التخفيض أكبر من تكلفة الكمية المرجعة');
+   if(amount<=0)return toast('أدخل قيمة تخفيض موجبة من المورد');if(amount>maxValue+0.000001)return toast('قيمة التخفيض أكبر من تكلفة الكمية المرجعة');
    if(q>Number(p.qty||0))return toast('الكمية أكبر من المخزون الحالي');
   }else return toast('نوع المرتجع غير صحيح');
   p.qty+=d.type==='sale'?q:-q;
