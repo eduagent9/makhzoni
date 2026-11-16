@@ -8,7 +8,7 @@ on:
       - '.github/workflows/makhzoni-pro-check.yml'
   pull_request:
     paths:
-      - 'pro/app.js'
+      - 'pro/**'
       - '.github/workflows/makhzoni-pro-check.yml'
 jobs:
   syntax:
