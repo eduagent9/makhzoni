@@ -126,7 +126,7 @@ function addReturn(){
     if(take>0){const unit=Number(item.costUnit)||((Number(item.lineCost)||0)/(Number(item.qty)||1));allocations.push({index:i,qty:take,unitCost:unit});costAmount+=take*unit;left-=take}
    }
    if(left>0)return toast('الكمية أكبر من المتبقي القابل للإرجاع في الفاتورة');
-   const refundable= sum(allocations,a=>{const item=items[a.index],lineTotal=Number(item.lineTotal??(Number(item.price||0)*Number(item.qty||0)))||0;return lineTotal*(a.qty/Math.max(1,Number(item.qty)||1))});
+   const invoiceSubtotal=sum(items,x=>Number(x.lineTotal??(Number(x.price||0)*Number(x.qty||0)))||0),discountRatio=invoiceSubtotal>0?Math.min(1,Math.max(0,Number(sourceSale.discount)||0)/invoiceSubtotal):0;const refundable=sum(allocations,a=>{const item=items[a.index],lineTotal=Number(item.lineTotal??(Number(item.price||0)*Number(item.qty||0)))||0;return lineTotal*(1-discountRatio)*(a.qty/Math.max(1,Number(item.qty)||1))});
    if(amount>refundable+0.000001)return toast('القيمة المسترجعة أكبر من قيمة السلع المرجعة في الفاتورة');
    sourceIndex=allocations[0]?.index??-1;
    unitCost=q?costAmount/q:0;
