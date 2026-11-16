@@ -58,3 +58,10 @@ test('backup validator rejects missing core arrays and malformed optional arrays
 test('backup validator rejects a backup belonging to another app', () => {
   assert.equal(backupValidator()({app:'other-app',products:[],sales:[]}), false);
 });
+
+test('product editor supports image upload, preview, and removal', () => {
+  assert.match(source, /name="imageFile" type="file" accept="image\/jpeg,image\/png,image\/webp"/);
+  assert.match(source, /if\(d\.removeImage==='yes'\)image=''/);
+  assert.match(source, /p\.image\?'<img src=/);
+  assert.match(source, /imageFile\.size>1024\*1024/);
+});
