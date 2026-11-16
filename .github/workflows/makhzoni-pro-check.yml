@@ -19,3 +19,4 @@ jobs:
         with:
           node-version: 22
       - run: node --check pro/app.js
+      - run: node --test pro/tests/*.test.js
