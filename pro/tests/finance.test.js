@@ -41,3 +41,20 @@ test('later customer payment ledger entry updates remaining debt', () => {
   assert.equal(h.salePaidTotal(sale),55);
   assert.equal(h.saleDue(sale),45);
 });
+
+function backupValidator() {
+  const code = extract('function validateBackupData(', '\nfunction load');
+  return new Function(code + '; return validateBackupData;')();
+}
+test('backup validator accepts a valid current backup', () => {
+  assert.equal(backupValidator()({app:'makhzouni-pro',products:[{name:'Rice',qty:5}],sales:[],purchases:[],settings:{currency:'MAD'}}), true);
+});
+test('backup validator rejects missing core arrays and malformed optional arrays', () => {
+  const validate = backupValidator();
+  assert.equal(validate({products:[]}), false);
+  assert.equal(validate({products:[],sales:[],returns:{}}), false);
+  assert.equal(validate({products:[{name:'Rice',qty:5}],sales:[],settings:[]}), false);
+});
+test('backup validator rejects a backup belonging to another app', () => {
+  assert.equal(backupValidator()({app:'other-app',products:[],sales:[]}), false);
+});
